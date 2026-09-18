@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Messages · FlexUni{% endblock %}
+{% block content %}
+<div class="page-title"><div class="eyebrow">CONNECT</div><h1>Messages</h1><p>Private conversations with students across FlexUni.</p></div>
+<div class="messages-shell" data-current-user="{{current_user.id}}" data-selected-user="{{selected.id if selected else ''}}" data-csrf="{{csrf_token}}">
+  <aside class="inbox-panel">
+    <div class="inbox-head"><div><b>Inbox</b><span id="message-unread-total"></span></div><button class="icon-btn" type="button" id="new-chat-btn" title="New conversation">＋</button></div>
+    <input class="inbox-search" id="contact-search" placeholder="Search students..." autocomplete="off">
+    <div id="conversation-list" class="conversation-list">
+      {% for c in contacts %}
+      <a class="conversation-row {% if selected and selected.id==c.user.id %}active{% endif %}" data-name="{{c.user.name|lower}}" href="{{url_for('messages',user=c.user.id)}}">
+        <div class="avatar">{% if c.user.photo %}<img src="{{url_for('static',filename='uploads/'+c.user.photo)}}">{% else %}{{c.user.name[0]|upper}}{% endif %}</div>
+        <div class="conversation-copy"><b>{{c.user.name}}</b><small>{{c.last.body[:48] if c.last else 'Start a conversation'}}</small></div>
+        {% if c.unread %}<span class="unread-dot">{{c.unread if c.unread < 100 else '99+'}}</span>{% endif %}
+      </a>
+      {% else %}<div class="inbox-empty">No conversations yet.</div>{% endfor %}
+    </div>
+    <div class="suggested"><small>START A CHAT</small>
+      {% for u in suggestions[:12] %}<a href="{{url_for('messages',user=u.id)}}" class="suggested-user" data-name="{{u.name|lower}}">{{u.name}}</a>{% endfor %}
+    </div>
+  </aside>
+
+  <section class="chat-panel">
+    {% if selected %}
+    <header class="chat-header">
+      <div class="avatar">{% if selected.photo %}<img src="{{url_for('static',filename='uploads/'+selected.photo)}}">{% else %}{{selected.name[0]|upper}}{% endif %}</div>
+      <div><b>{{selected.name}}</b><small>{{selected.course or selected.university}}</small></div>
+      <a class="chat-profile" href="{{url_for('profile',user_id=selected.id)}}">View profile</a>
+    </header>
+    <div class="conversation" id="conversation" aria-live="polite">
+      {% for m in convo %}<div class="bubble-wrap {% if m.sender_id==current_user.id %}mine{% endif %}" data-message-id="{{m.id}}"><div class="bubble">{{m.body}}</div><small>{{m.created_at.strftime('%d %b, %H:%M')}}</small></div>{% else %}<div class="chat-empty"><div>💬</div><b>Start the conversation</b><p>Send {{selected.name}} a message.</p></div>{% endfor %}
+    </div>
+    <div class="typing" id="typing-status" aria-live="polite"></div>
+    <form class="chat-form enhanced" id="message-form" action="{{url_for('send_message_form')}}" method="post">
+      <input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" name="receiver_id" value="{{selected.id}}">
+      <textarea id="message-input" name="body" rows="1" maxlength="2000" placeholder="Write a message..." autocomplete="off" required></textarea><button type="submit">Send</button>
+    </form>
+    <div class="chat-note">Messages are limited to 2,000 characters.</div>
+    {% else %}
+    <div class="chat-empty full"><div>💬</div><h2>Your messages</h2><p>Select a student or start a new conversation.</p><button type="button" class="cta" id="new-chat-btn-main">Start a conversation</button></div>
+    {% endif %}
+  </section>
+</div>
+
+<div class="modal" id="new-chat-modal" hidden><div class="modal-card"><div class="modal-head"><h2>New conversation</h2><button class="icon-btn" id="close-new-chat">×</button></div><input id="new-chat-search" class="inbox-search" placeholder="Search students..."> <div class="new-chat-results">{% for u in suggestions %}<a href="{{url_for('messages',user=u.id)}}" data-name="{{u.name|lower}}"><div class="avatar">{% if u.photo %}<img src="{{url_for('static',filename='uploads/'+u.photo)}}">{% else %}{{u.name[0]|upper}}{% endif %}</div><div><b>{{u.name}}</b><small>{{u.course or u.university}}</small></div></a>{% endfor %}</div></div></div>
+<script>
+(function(){
+ const shell=document.querySelector('.messages-shell'); if(!shell)return;
+ const csrf=shell.dataset.csrf, selected=shell.dataset.selectedUser, uid=shell.dataset.currentUser;
+ const ws=window.FlexUniWS?.();
+ if(ws){ws.addEventListener('message',e=>{try{const d=JSON.parse(e.data); if(d.type==='message'){if(!selected || String(d.message.sender_id)===String(selected) || String(d.message.receiver_id)===String(selected)) addMessage(d.message); if(String(d.message.receiver_id)===String(uid)) markReadIfOpen();} if(d.type==='typing' && String(d.from)===String(selected)){const t=document.getElementById('typing-status'); if(t){t.textContent=d.active?'Typing…':'';}}}catch(_){}})}
+ function markReadIfOpen(){ if(selected) fetch('/messages/'+selected+'/read',{method:'POST',headers:{'X-CSRF-Token':csrf}}).catch(()=>{}); }
+ const form=document.getElementById('message-form'), box=document.getElementById('conversation'), input=document.getElementById('message-input');
+ function scrollBottom(){if(box) box.scrollTop=box.scrollHeight;}
+ scrollBottom();
+ document.getElementById('contact-search')?.addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('.conversation-row,.suggested-user').forEach(x=>x.style.display=x.dataset.name.includes(q)?'':'none')});
+ function addMessage(m){if(!box || box.querySelector('[data-message-id="'+m.id+'"]'))return; const empty=box.querySelector('.chat-empty'); if(empty)empty.remove(); const wrap=document.createElement('div');wrap.className='bubble-wrap '+(String(m.sender_id)===String(uid)?'mine':'');wrap.dataset.messageId=m.id;const b=document.createElement('div');b.className='bubble';b.textContent=m.body;const s=document.createElement('small');s.textContent=new Date(m.created_at).toLocaleString([], {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});wrap.append(b,s);box.appendChild(wrap);scrollBottom();}
+ async function refresh(){if(!selected)return;try{const r=await fetch('/api/messages?user='+selected,{headers:{'X-Requested-With':'fetch'}});if(!r.ok)return;const d=await r.json();d.messages.forEach(addMessage);}catch(e){}}
+ form?.addEventListener('submit',async e=>{e.preventDefault();const body=input.value.trim();if(!body)return;const fd=new FormData(form);try{const r=await fetch('/api/messages/send',{method:'POST',headers:{'X-CSRF-Token':csrf},body:fd});if(!r.ok)throw new Error();const d=await r.json();addMessage(d.message);input.value='';input.style.height='auto';}catch(e){alert('Could not send the message. Please try again.')}});
+ input?.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,130)+'px'; if(ws&&ws.readyState===1&&selected) ws.send(JSON.stringify({type:'typing',to:Number(selected),active:input.value.length>0}));});
+ input?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit()}});
+ if(selected){markReadIfOpen();setInterval(refresh,3500);}
+ const modal=document.getElementById('new-chat-modal'); const open=()=>{modal.hidden=false;document.getElementById('new-chat-search')?.focus()}; document.getElementById('new-chat-btn')?.addEventListener('click',open);document.getElementById('new-chat-btn-main')?.addEventListener('click',open);document.getElementById('close-new-chat')?.addEventListener('click',()=>modal.hidden=true);modal?.addEventListener('click',e=>{if(e.target===modal)modal.hidden=true});
+ document.getElementById('new-chat-search')?.addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('.new-chat-results a').forEach(x=>x.style.display=x.dataset.name.includes(q)?'':'none')});
+ setInterval(async()=>{try{const r=await fetch('/api/unread-counts');if(r.ok){const d=await r.json();const el=document.getElementById('message-unread-total');if(el)el.textContent=d.messages?d.messages+' unread':''}}catch(e){}},5000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#6d5dfc"><title>{% block title %}FlexUni{% endblock %}</title><link rel="stylesheet" href="{{url_for('static',filename='style.css')}}"></head>
+<body>
+<header class="topbar"><div class="topbar-inner"><a class="logo" href="{{url_for('index')}}">Flex<span>Uni</span></a><form class="search" action="{{url_for('search')}}"><span>⌕</span><input name="q" value="{{request.args.get('q','')}}" placeholder="Search students, posts, market..."></form><nav class="desktop-nav"><a href="{{url_for('index')}}">Home</a><a href="{{url_for('marketplace')}}">Market</a><a href="{{url_for('study')}}">Study</a><a href="{{url_for('opportunities')}}">Opportunities</a><a href="{{url_for('campus')}}">Campus</a><a href="{{url_for('communities')}}">Communities</a><a href="{{url_for('universities')}}">Universities</a>{% if current_user %}{% if current_user.role=="admin" %}<a href="{{url_for('admin_dashboard')}}">Admin</a>{% endif %}<a href="{{url_for('messages')}}" class="message-nav">Messages<sup id="nav-message-badge" {% if not unread_messages %}hidden{% endif %}>{{unread_messages}}</sup></a><a href="{{url_for('notifications')}}" class="notif">🔔<sup id="nav-notification-badge" {% if not unread_notifications %}hidden{% endif %}>{{unread_notifications}}</sup></a><a class="nav-avatar" href="{{url_for('profile',user_id=current_user.id)}}">{% if current_user.photo %}<img src="{{url_for('static',filename='uploads/'+current_user.photo)}}">{% else %}{{current_user.name[0]|upper}}{% endif %}</a><form method="post" action="{{url_for('logout')}}" class="inline"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><button class="ghost-btn">Log out</button></form>{% else %}<a class="pill" href="{{url_for('login')}}">Log in</a><a class="pill dark" href="{{url_for('register')}}">Join FlexUni</a>{% endif %}</nav></div></header>
+{% if current_user and my_universities %}<div class="university-bar"><div class="university-bar-inner"><span>🎓 <b>{{selected_university.name if selected_university else "Choose campus"}}</b></span><form method="post" action="{{url_for('switch_university')}}"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" name="next" value="{{request.full_path}}"><select name="university_id" onchange="this.form.submit()">{% for m in my_universities %}<option value="{{m.university_id}}" {% if selected_university and m.university_id==selected_university.id %}selected{% endif %}>{{m.university.name}}</option>{% endfor %}</select></form><a href="{{url_for('universities')}}">Explore campuses →</a></div></div>{% endif %}
+<div class="mobile-nav"><a href="{{url_for('index')}}">⌂<span>Home</span></a><a href="{{url_for('search')}}">⌕<span>Search</span></a><a href="{{url_for('marketplace')}}">🛍<span>Market</span></a><a href="{{url_for('campus')}}">🏫<span>Campus</span></a>{% if current_user %}{% if current_user.role=="admin" %}<a href="{{url_for('admin_dashboard')}}">Admin</a>{% endif %}<a href="{{url_for('messages')}}">💬<span>Messages</span></a><a href="{{url_for('profile',user_id=current_user.id)}}">●<span>Profile</span></a>{% else %}<a href="{{url_for('login')}}">↪<span>Log in</span></a>{% endif %}</div>
+<main>{% with msgs=get_flashed_messages() %}{% for m in msgs %}<div class="flash">{{m}}</div>{% endfor %}{% endwith %}{% block content %}{% endblock %}</main><footer><strong>Flex<span>Uni</span></strong><p>Your digital campus — built to connect student life.</p></footer><script>
+(function(){
+  {% if current_user %}
+  const proto=location.protocol==='https:'?'wss':'ws';
+  let ws, retry=1000;
+  function setBadge(id,count){const el=document.getElementById(id);if(!el)return;el.textContent=count>99?'99+':count;el.hidden=count<1;}
+  function connect(){
+    try{ws=new WebSocket(proto+'://'+location.host+'/ws');
+      ws.onopen=()=>{retry=1000;};
+      ws.onmessage=e=>{try{const d=JSON.parse(e.data);
+        if(d.type==='unread_counts'){setBadge('nav-message-badge',d.messages||0);setBadge('nav-notification-badge',d.notifications||0);}
+        if(d.type==='notification'){
+          fetch('/api/unread-counts').then(r=>r.json()).then(x=>{setBadge('nav-message-badge',x.messages||0);setBadge('nav-notification-badge',x.notifications||0);});
+          if(location.pathname!=='/notifications' && 'Notification' in window && Notification.permission==='granted') new Notification('FlexUni', {body:d.notification.text});
+        }
+      }catch(_){} };
+      ws.onclose=()=>{setTimeout(connect,retry);retry=Math.min(retry*2,10000);};
+    }catch(_){setTimeout(connect,retry);}
+  }
+  connect(); window.FlexUniWS=()=>ws;
+  {% endif %}
+})();
+</script></body></html>

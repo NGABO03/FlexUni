@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% block title %}Plans • FlexUni{% endblock %}{% block content %}
+<div class="page-title"><div><span class="eyebrow">FLEXUNI PLUS</span><h1>Plans built for campus life.</h1><p>Monetization is provider-ready now; payments can be connected without redesigning the platform.</p></div></div>
+<section class="plans-grid">
+<article class="plan-card"><span class="eyebrow">FREE</span><h2>Student</h2><div class="price">RWF 0</div><p>Core FlexUni access.</p><ul><li>Feed & profiles</li><li>Study & opportunities</li><li>Messaging & notifications</li><li>Marketplace & communities</li></ul></article>
+<article class="plan-card featured"><span class="eyebrow">STUDENT PLUS</span><h2>Student Plus</h2><div class="price">Coming soon</div><p>Premium student features when billing is connected.</p><ul><li>Enhanced profile</li><li>Premium campus tools</li><li>Priority feature access</li><li>Future AI-powered tools</li></ul>{% if current and current.plan=='student_plus' %}<span class="badge">{{current.status|title}}</span>{% else %}<form method="post" action="{{url_for('billing_checkout')}}"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" name="plan" value="student_plus"><button class="pill dark">Start checkout</button></form>{% endif %}</article>
+<article class="plan-card"><span class="eyebrow">BUSINESS</span><h2>Campus Business</h2><div class="price">Coming soon</div><p>For verified campus businesses and organizations.</p><ul><li>Business profile</li><li>Business identity</li><li>Future promoted listings</li><li>Future analytics & services</li></ul><a class="pill" href="{{url_for('business_account')}}">Create business profile</a></article>
+</section>
+<div class="notice"><strong>Payment safety:</strong> this build does not pretend to process a payment. The checkout, subscription, webhook and provider IDs are separated so a verified payment provider can be integrated next.</div>
+{% endblock %}

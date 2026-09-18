@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Notifications · FlexUni{% endblock %}
+{% block content %}
+<div class="page-title notification-title"><div><div class="eyebrow">UPDATES</div><h1>Notifications</h1><p>Stay on top of messages, likes, comments, shares and opportunities.</p></div><button class="smallbtn" id="read-all">Mark all as read</button></div>
+<div class="notification-list" id="notification-list">
+{% for n in items %}
+<a class="notification-item {% if not n.read %}unread{% endif %}" href="{{n.url or '#'}}" data-id="{{n.id}}">
+  <div class="notification-icon">{% if n.kind=='message' %}💬{% elif n.kind=='like' %}❤️{% elif n.kind=='comment' %}💭{% elif n.kind=='share' %}↗️{% else %}🔔{% endif %}</div>
+  <div><b>{{n.kind|title}}</b><p>{{n.text}}</p><small>{{n.created_at.strftime('%d %b %Y · %H:%M')}}</small></div><span class="notification-state">{% if not n.read %}New{% endif %}</span>
+</a>
+{% else %}<div class="empty">No notifications yet.</div>{% endfor %}
+</div>
+<script>
+(function(){const csrf='{{csrf_token}}';
+const ws=window.FlexUniWS?.();
+if(ws){ws.addEventListener('message',e=>{try{const d=JSON.parse(e.data);if(d.type==='notification'){const n=d.notification;const list=document.getElementById('notification-list');if(!list)return;const empty=list.querySelector('.empty');if(empty)empty.remove();if(list.querySelector('[data-id=\"'+n.id+'\"]'))return;const a=document.createElement('a');a.className='notification-item unread';a.href=n.url||'#';a.dataset.id=n.id;const icon=n.kind==='message'?'💬':n.kind==='like'?'❤️':n.kind==='comment'?'💭':n.kind==='share'?'↗️':'🔔';a.innerHTML='<div class=\"notification-icon\">'+icon+'</div><div><b>'+n.kind.charAt(0).toUpperCase()+n.kind.slice(1)+'</b><p></p><small>'+new Date(n.created_at).toLocaleString()+'</small></div><span class=\"notification-state\">New</span>';a.querySelector('p').textContent=n.text;list.prepend(a);a.addEventListener('click',()=>fetch('/notifications/'+n.id+'/read',{method:'POST',headers:{'X-CSRF-Token':csrf}}));}}catch(_){}})}
+document.querySelectorAll('.notification-item.unread').forEach(x=>x.addEventListener('click',()=>{fetch('/notifications/'+x.dataset.id+'/read',{method:'POST',headers:{'X-CSRF-Token':csrf}})}));document.getElementById('read-all')?.addEventListener('click',async()=>{await fetch('/notifications/read-all',{method:'POST',headers:{'X-CSRF-Token':csrf}});document.querySelectorAll('.notification-item.unread').forEach(x=>{x.classList.remove('unread');x.querySelector('.notification-state').textContent=''});});})();
+</script>
+{% endblock %}
